@@ -42,7 +42,12 @@ export function AuthPage({ registerMode = false }: { registerMode?: boolean }) {
     resolver: zodResolver(validation),
     defaultValues: { fullName: '', confirmPassword: '' },
   });
-  if (user) return <Navigate to="/dashboard" replace />;
+  const from = location.state?.from;
+  const destination =
+    typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
+      ? from
+      : '/dashboard';
+  if (user) return <Navigate to={destination} replace />;
   async function submit(v: Values) {
     setError('');
     try {
@@ -52,12 +57,7 @@ export function AuthPage({ registerMode = false }: { registerMode?: boolean }) {
       });
       setUser(data);
       toast(registerMode ? 'Welcome to the CampusFind community!' : 'Welcome back!');
-      const from = location.state?.from;
-      navigate(
-        typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
-          ? from
-          : '/dashboard',
-      );
+      navigate(destination);
     } catch (e) {
       setError((e as Error).message);
     }
