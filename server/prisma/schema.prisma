@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+enum Role {
+  STUDENT
+  ADMIN
+}
+enum ItemType {
+  LOST
+  FOUND
+}
+enum ItemStatus {
+  OPEN
+  VERIFIED
+  RETURNED
+  WITHDRAWN
+}
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+model User {
+  id           Int            @id @default(autoincrement()) @map("user_id")
+  fullName     String         @map("full_name") @db.VarChar(100)
+  email        String         @unique @db.VarChar(254)
+  passwordHash String         @map("password_hash") @db.VarChar(255)
+  role         Role           @default(STUDENT)
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  items        Item[]
+  claims       Claim[]        @relation("Claimant")
+  reviews      Claim[]        @relation("Reviewer")
+  sessions     Session[]
+  notifications Notification[]
+  activities   ActivityLog[]
+  @@map("users")
+}
+model Category {
+  id          Int    @id @default(autoincrement()) @map("category_id")
+  name        String @unique @map("category_name") @db.VarChar(60)
+  description String @db.VarChar(255)
+  items       Item[]
+  @@map("categories")
+}
+model Item {
+  id              Int        @id @default(autoincrement()) @map("item_id")
+  userId          Int        @map("user_id")
+  categoryId      Int        @map("category_id")
+  title           String     @db.VarChar(120)
+  description     String     @db.Text
+  identifyingDetails String? @map("identifying_details") @db.Text
+  type            ItemType   @map("item_type")
+  location        String     @db.VarChar(160)
+  eventDate       DateTime   @map("event_date") @db.Date
+  status          ItemStatus @default(OPEN)
+  imagePath       String?    @map("image_path") @db.VarChar(255)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  user            User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  category        Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  claims          Claim[]
+  @@index([type, status, createdAt])
+  @@index([categoryId, createdAt])
+  @@index([userId, status])
+  @@index([location])
+  @@index([eventDate])
+  @@map("items")
+}
+model Claim {
+  id                    Int         @id @default(autoincrement()) @map("claim_id")
+  itemId                Int         @map("item_id")
+  claimantId            Int         @map("claimant_id")
+  ownershipProof        String      @map("ownership_proof") @db.Text
+  identifyingDetails    String      @map("identifying_details") @db.Text
+  supportingInformation String?     @map("supporting_information") @db.Text
+  status                ClaimStatus @default(PENDING)
+  reviewedBy            Int?        @map("reviewed_by")
+  reviewedAt            DateTime?   @map("reviewed_at")
+  reviewNote            String?     @map("review_note") @db.VarChar(500)
+  createdAt             DateTime    @default(now()) @map("created_at")
+  item                  Item        @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  claimant              User        @relation("Claimant", fields: [claimantId], references: [id], onDelete: Restrict)
+  reviewer              User?       @relation("Reviewer", fields: [reviewedBy], references: [id], onDelete: Restrict)
+  @@unique([itemId, claimantId])
+  @@index([status, createdAt])
+  @@index([claimantId, createdAt])
+  @@index([reviewedBy])
+  @@map("claims")
+}
+model Notification {
+  id        Int      @id @default(autoincrement()) @map("notification_id")
+  userId    Int      @map("user_id")
+  message   String   @db.VarChar(500)
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+model ActivityLog {
+  id         Int      @id @default(autoincrement()) @map("log_id")
+  actorId    Int      @map("actor_id")
+  action     String   @db.VarChar(60)
+  entityType String   @map("entity_type") @db.VarChar(30)
+  entityId   Int      @map("entity_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([actorId, createdAt])
+  @@map("activity_logs")
+}
+// Infrastructure table: opaque sessions are revocable and never stored in plaintext.
+model Session {
+  id        String   @id @db.Char(64)
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
